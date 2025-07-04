@@ -14,7 +14,7 @@ load_dotenv()  # загружает переменные из .env
 token = os.getenv("BOT_TOKEN")   
 print("token", token)
 
-bot = telebot.TeleBot(8169299078:AAHseFWoXmETKot6Kg8b2zJrtkK1wJ-x7S4)  # Замените на ваш токен
+bot = telebot.TeleBot("8169299078:AAHseFWoXmETKot6Kg8b2zJrtkK1wJ-x7S4")  # Замените на ваш токен
 
 # КОНФИГУРАЦИЯ АДМИНИСТРАТОРА
 ADMIN_IDS = [6859492950]  # ЗАМЕНИТЕ НА ВАШ ТЕЛЕГРАМ ID
