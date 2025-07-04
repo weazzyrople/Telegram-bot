@@ -1,6 +1,1 @@
-{ pkgs }: {
-  deps = [
-    pkgs.python311Full
-    pkgs.supervisor
-  ];
-}
+replit.nix удален
