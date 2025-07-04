@@ -604,4 +604,248 @@ def show_profile(message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
 
-    if user_i
+    if user_id not in users_balance:
+        users_balance[user_id] = 0
+
+    # Инициализация статистики, если её нет
+    if user_id not in user_stats:
+        user_stats[user_id] = {"sales": 0, "purchases": 0}
+
+    stats = user_stats[user_id]
+
+    # Рассчитаем рейтинг на основе статистики
+    rating = min(5.0, 4.5 + (stats['sales'] + stats['purchases']) * 0.1)
+
+    info_text = (
+        f"👤 ПРОФИЛЬ: {first_name}\n\n"
+        f"⭐ Рейтинг: {rating:.1f}/5.0\n"
+        f"▫️ Ваш ID: {user_id}\n"
+        f"▫️ Баланс: {users_balance[user_id]} RUB\n"
+        "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+        f"📦 Успешных продаж: {stats['sales']}\n"
+        f"🛒 Успешных покупок: {stats['purchases']}\n"
+        f"🏆 Статистика: {get_user_rating(user_id)}\n"
+        "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+        "💸 Для вывода средств используйте /withdraw"
+    )
+
+    bot.send_message(message.chat.id, info_text)
+
+
+@bot.message_handler(func=lambda message: message.text == '🛒 Активные сделки')
+def show_active_deals(message):
+    active = []
+    for deal_id, deal in deals_db.items():
+        if deal['status'] in ['active', 'waiting_delivery']:
+            status = "🟢 Активна" if deal['status'] == 'active' else "🟡 Ожидает получения"
+            active.append(f"▫️ #{deal_id} - {deal['description']} - {deal['amount']} {deal['currency']} ({status})")
+
+    if not active:
+        bot.reply_to(message, "ℹ️ Сейчас нет активных сделок")
+        return
+
+    deals_text = (
+            "🆕 АКТИВНЫЕ СДЕЛКИ\n\n" +
+            "\n".join(active) +
+            "\n➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+            "Для участия в сделке перейдите по ссылке от продавца"
+    )
+
+    bot.send_message(message.chat.id, deals_text)
+
+
+@bot.message_handler(commands=['withdraw'])
+def handle_withdraw(message):
+    user_id = message.from_user.id
+
+    if user_id not in users_balance:
+        users_balance[user_id] = 0
+
+    if users_balance[user_id] <= 0:
+        bot.reply_to(message, "❌ На вашем балансе недостаточно средств для вывода")
+        return
+
+    user_states[user_id] = {"step": "withdraw_details", "amount": users_balance[user_id]}
+    bot.send_message(
+        message.chat.id,
+        f"💳 Введите реквизиты для вывода {users_balance[user_id]} RUB:\n\n"
+        "Пример: Сбербанк 2200 7000 8000 5500"
+    )
+
+
+@bot.message_handler(func=lambda message: user_states.get(message.from_user.id, {}).get('step') == 'withdraw_details')
+def handle_withdraw_details(message):
+    user_id = message.from_user.id
+    details = message.text
+
+    amount = user_states[user_id]['amount']
+    users_balance[user_id] = 0
+
+    bot.send_message(
+        message.chat.id,
+        f"✅ ЗАПРОС НА ВЫВОД {amount} RUB ОТПРАВЛЕН!\n\n"
+        f"▫️ Реквизиты: {details}\n"
+        "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+        "⚠️ Вывод средств будет выполнен в течение 2 рабочих дней\n\n"
+        "Спасибо за использование нашего сервиса!"
+    )
+
+    del user_states[user_id]
+
+
+@bot.message_handler(commands=['add_balance'])
+def handle_add_balance(message):
+    user_id = message.from_user.id
+
+    if not is_admin(user_id):
+        bot.reply_to(message, "❌ Эта команда доступна только администраторам")
+        return
+
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            raise ValueError
+
+        target_user_id = int(parts[1])
+        amount = float(parts[2])
+
+        if target_user_id not in users_balance:
+            users_balance[target_user_id] = 0
+
+        users_balance[target_user_id] += amount
+
+        bot.reply_to(message, f"✅ Баланс пользователя {target_user_id} пополнен на {amount} RUB")
+
+    except:
+        bot.reply_to(message, "❌ Неверный формат команды. Используйте: /add_balance <user_id> <amount>")
+
+
+@bot.message_handler(func=lambda message: message.text == 'ℹ️ Помощь')
+def show_help(message):
+    help_text = (
+        "ℹ️ КОМАНДЫ И ИНСТРУКЦИЯ\n\n"
+        "▫️ /start - Главное меню\n"
+        "▫️ /withdraw - Вывод средств\n"
+        "▫️ /support - Связаться с поддержкой\n"
+        "➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+        "🛒 Как создать сделку:\n"
+        "1. Добавьте реквизиты в '💳 Мои реквизиты'\n"
+        "2. Нажмите 'Создать сделку'\n"
+        "3. Введите описание товара\n"
+        "4. Введите сумму\n"
+        "5. Выберите валюту\n"
+        "6. Поделитесь ссылкой с покупателем\n\n"
+        "💰 Как купить товар:\n"
+        "1. Перейдите по ссылке от продавца\n"
+        "2. Оплатите товар по реквизитам\n"
+        "3. Нажмите 'Я оплатил'\n"
+        "4. После получения товара нажмите 'Я получил заказ'\n\n"
+        "💳 Требования:\n"
+        "▫️ Продавцам необходимо добавить платежные реквизиты\n"
+        "▫️ Все сделки защищены гарантом\n"
+        "▫️ Средства хранятся на защищенных счетах\n\n"
+        "💸 Вывод средств осуществляется в течение 2 рабочих дней\n"
+        "🛡️ Гарант безопасных сделок с 2023 года"
+    )
+
+    bot.reply_to(message, help_text)
+
+
+@bot.message_handler(commands=['support'])
+def handle_support(message):
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name
+
+    markup = types.InlineKeyboardMarkup()
+    support_btn = types.InlineKeyboardButton(
+        text="👨‍💼 Написать в поддержку",
+        url="https://t.me/your_support_username"
+    )
+    markup.add(support_btn)
+
+    bot.send_message(
+        message.chat.id,
+        f"🛟 Техническая поддержка\n\n"
+        f"Привет, {first_name}!\n"
+        "Если у вас возникли проблемы с использованием бота или сделкой, "
+        "наша служба поддержки готова помочь.\n\n"
+        "Нажмите кнопку ниже, чтобы связаться с оператором:",
+        reply_markup=markup
+    )
+
+
+def send_reminders():
+    now = time.time()
+    for deal_id, deal in list(deals_db.items()):
+        if deal['status'] == 'waiting_delivery' and 'last_reminder' not in deal:
+            seller_id = deal['seller_id']
+            try:
+                bot.send_message(
+                    seller_id,
+                    f"⏰ НАПОМИНАНИЕ ПО СДЕЛКЕ #{deal_id}\n\n"
+                    f"Покупатель уже оплатил товар {deal['amount']} {deal['currency']}.\n"
+                    "Пожалуйста, отправьте товар как можно скорее.\n\n"
+                    "После отправки сообщите покупателю трек-номер для отслеживания.\n\n"
+                    "⚠️ Средства будут заморожены до подтверждения получения товара покупателем."
+                )
+                deal['last_reminder'] = now
+            except:
+                pass
+
+        elif deal['status'] == 'waiting_delivery' and now - deal.get('last_reminder', 0) > 86400:
+            buyer_id = deal['buyer_id']
+            try:
+                bot.send_message(
+                    buyer_id,
+                    f"⏰ НАПОМИНАНИЕ ПО СДЕЛКЕ #{deal_id}\n\n"
+                    f"Продавец должен был отправить товар {deal['description']}.\n"
+                    "Если вы уже получили товар, пожалуйста, подтвердите получение.\n\n"
+                    "Если возникли проблемы или задержки, используйте команду /support"
+                )
+                deal['last_reminder'] = now
+            except:
+                pass
+
+
+@bot.message_handler(func=lambda m: True)
+def handle_other(message):
+    text = message.text.lower()
+
+    if text in ['привет', 'hi', 'hello']:
+        bot.reply_to(message, f"👋 Привет, {message.from_user.first_name}!")
+    elif text in ['спасибо', 'благодарю', 'thanks']:
+        bot.reply_to(message, "🙏 Пожалуйста! Обращайтесь, если понадобится помощь.")
+    elif text in ['гарант', 'guarantee', 'безопасность']:
+        bot.reply_to(message, "🛡️ Все сделки защищены гарантийным сервисом:\n"
+                              "- Средства хранятся на защищенных счетах\n"
+                              "- Продавец получает оплату только после получения товара\n"
+                              "- Поддержка 24/7 для решения спорных ситуаций\n"
+                              "- Система рейтинга для надежных участников")
+    elif text in ['статус', 'status']:
+        bot.reply_to(message, "🟢 Бот работает в штатном режиме\n"
+                              "Все системы функционируют нормально\n"
+                              "Последнее обновление: 02.07.2025")
+    else:
+        bot.reply_to(message, "ℹ️ Используйте кнопки меню для навигации или /help для помощи")
+
+
+if __name__ == "__main__":
+    print("⚡ Бот запущен...")
+    print(f"Администраторы: {ADMIN_IDS}")
+
+    import threading
+
+
+    def reminder_loop():
+        while True:
+            try:
+                send_reminders()
+            except Exception as e:
+                print(f"Ошибка в напоминаниях: {e}")
+            time.sleep(3600)
+
+
+    reminder_thread = threading.Thread(target=reminder_loop, daemon=True)
+    reminder_thread.start()
+
+    bot.infinity_polling()
