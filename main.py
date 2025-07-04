@@ -9,7 +9,6 @@ import os
 
 load_dotenv()  # загружает переменные из .env
 
-token = os.getenv("token")
 token = os.getenv("BOT_TOKEN")
 print("token", token)
 
