@@ -9,7 +9,10 @@ import os
 
 load_dotenv()  # загружает переменные из .env
 
-token = os.getenv("BOT_TOKEN")
+load_dotenv()  # загружает переменные из .env
+
+token = os.getenv("BOT_TOKEN") 
+bot = telebot.TeleBot(token)  
 print("token", token)
 
 bot = telebot.TeleBot(token)  # Замените на ваш токен
